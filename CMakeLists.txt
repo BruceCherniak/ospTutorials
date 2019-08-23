@@ -17,7 +17,7 @@
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.12)
 
 project(ospTutorials VERSION 1.0.0 LANGUAGES C CXX)
 
@@ -37,96 +37,50 @@ set(OSPRAY_DEFAULT_COMPONENT tutorials)
 set(OpenGL_GL_PREFERENCE "LEGACY")
 find_package(OpenGL 2 REQUIRED)
 
-find_package(glfw3 QUIET)
-if (TARGET glfw)
-  get_property(glfw3_INCLUDE_DIRS TARGET glfw
-    PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-  )
-endif()
-
 add_subdirectory(imgui)
+add_subdirectory(glfw)
 
-# build ospTutorial, for demonstration and API testing
+## build simple ospTutorial, for demonstration and API testing ##
+
 add_executable(ospTutorial ospTutorial.c)
 target_link_libraries(ospTutorial PRIVATE ospray::ospray)
 # C++ version
 add_executable(ospTutorialCpp ospTutorial.cpp)
 target_link_libraries(ospTutorialCpp PRIVATE ospray::ospray)
 
-add_executable(ospTutorialSpheres
+## create a static library of common tutorial bits ##
+
+add_library(tutorial_common STATIC
   ArcballCamera.cpp
   GLFWOSPRayWindow.cpp
-  ospTutorialSpheres.cpp
   imgui/imgui_impl_glfw_gl3.cpp
 )
 
-target_link_libraries(ospTutorialSpheres
-PRIVATE
+if (WIN32)
+  # avoid problematic min/max defines of windows.h
+target_compile_definitions(tutorial_common -DNOMINMAX)
+endif()
+
+target_link_libraries(tutorial_common PUBLIC
   ospray::ospray_testing
   ospray_imgui
   glfw
   ${OPENGL_LIBRARIES}
 )
 
-add_executable(ospTutorialBouncingSpheres
-  ArcballCamera.cpp
-  GLFWOSPRayWindow.cpp
-  ospTutorialBouncingSpheres.cpp
-  imgui/imgui_impl_glfw_gl3.cpp
-)
+## build actual tutorials ##
 
-target_link_libraries(ospTutorialBouncingSpheres
-PRIVATE
-  ospray::ospray
-  ospray::ospray_common
-  ospray_imgui
-  glfw
-  ${OPENGL_LIBRARIES}
-)
+add_executable(ospTutorialSpheres ospTutorialSpheres.cpp)
+target_link_libraries(ospTutorialSpheres PRIVATE tutorial_common)
 
-add_executable(ospTutorialSubdivision
-  ArcballCamera.cpp
-  GLFWOSPRayWindow.cpp
-  ospTutorialSubdivision.cpp
-  imgui/imgui_impl_glfw_gl3.cpp
-)
+add_executable(ospTutorialBouncingSpheres ospTutorialBouncingSpheres.cpp)
+target_link_libraries(ospTutorialBouncingSpheres PRIVATE tutorial_common)
 
-target_link_libraries(ospTutorialSubdivision
-PRIVATE
-  ospray::ospray
-  ospray::ospray_testing
-  ospray_imgui
-  glfw
-  ${OPENGL_LIBRARIES}
-)
+add_executable(ospTutorialSubdivision ospTutorialSubdivision.cpp)
+target_link_libraries(ospTutorialSubdivision PRIVATE tutorial_common)
 
-add_executable(ospTutorialStructuredVolume
-  ArcballCamera.cpp
-  GLFWOSPRayWindow.cpp
-  ospTutorialStructuredVolume.cpp
-  imgui/imgui_impl_glfw_gl3.cpp
-)
+add_executable(ospTutorialStructuredVolume ospTutorialStructuredVolume.cpp)
+target_link_libraries(ospTutorialStructuredVolume PRIVATE tutorial_common)
 
-target_link_libraries(ospTutorialStructuredVolume
-PRIVATE
-  ospray::ospray_testing
-  ospray_imgui
-  glfw
-  ${OPENGL_LIBRARIES}
-)
-
-add_executable(ospTutorialUnstructuredVolume
-  ArcballCamera.cpp
-  GLFWOSPRayWindow.cpp
-  ospTutorialUnstructuredVolume.cpp
-  imgui/imgui_impl_glfw_gl3.cpp
-)
-
-target_link_libraries(ospTutorialUnstructuredVolume
-PRIVATE
-  ospray::ospray
-  ospray::ospray_testing
-  ospray_imgui
-  glfw
-  ${OPENGL_LIBRARIES}
-)
+add_executable(ospTutorialUnstructuredVolume ospTutorialUnstructuredVolume.cpp)
+target_link_libraries(ospTutorialUnstructuredVolume PRIVATE tutorial_common)
