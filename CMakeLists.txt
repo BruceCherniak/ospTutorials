@@ -58,7 +58,7 @@ add_library(tutorial_common STATIC
 
 if (WIN32)
   # avoid problematic min/max defines of windows.h
-target_compile_definitions(tutorial_common -DNOMINMAX)
+  target_compile_definitions(tutorial_common PUBLIC -DNOMINMAX)
 endif()
 
 target_link_libraries(tutorial_common PUBLIC
