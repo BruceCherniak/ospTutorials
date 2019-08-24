@@ -19,10 +19,7 @@
 #include <random>
 #include "GLFWOSPRayWindow.h"
 
-//#include "ospcommon/library.h"
 #include "ospray_testing.h"
-
-//#include "tutorial_util.h"
 
 #include <imgui.h>
 
