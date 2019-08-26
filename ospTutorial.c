@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <errno.h>
 #ifdef _WIN32
+#  define NOMINMAX
 #  include <malloc.h>
 #else
 #  include <alloca.h>

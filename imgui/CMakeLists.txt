@@ -14,7 +14,7 @@
 ## limitations under the License.                                           ##
 ## ======================================================================== ##
 
-add_library(ospray_imgui
+add_library(ospray_imgui SHARED
   imgui.cpp
   imgui_draw.cpp
   imgui_demo.cpp
@@ -24,6 +24,10 @@ target_link_libraries(ospray_imgui
   ospray::ospray
   ${OPENGL_LIBRARIES}
 )
+if (WIN32)
+  # avoid problematic min/max defines of windows.h
+  target_compile_definitions(ospray_imgui PUBLIC -DNOMINMAX)
+endif()
 
 target_include_directories(
   ospray_imgui
