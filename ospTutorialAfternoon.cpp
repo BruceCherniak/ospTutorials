@@ -14,15 +14,13 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-// OSPRay in an Afternoon //
-// inspired by the excellent Ray Tracing in One Weekend //
+// OSPRay in an Afternoon
+// Inspired by Pete Shirley's excellent Ray Tracing in One Weekend
 
 #include <iterator>
 #include <memory>
 #include <random>
 #include "GLFWOSPRayWindow.h"
-
-#include "ospray_testing.h"
 
 #include <imgui.h>
 
@@ -44,7 +42,11 @@ class Sphere
     ospSet1f(sphere, "radius", radius);
     ospCommit(sphere);
   }
-  OSPGeometry geom()
+  ~Sphere()
+  {
+    ospRelease(sphere);
+  }
+  OSPGeometry g()
   {
     return sphere;
   }
@@ -72,22 +74,26 @@ class DiffuseSphere : public Sphere
 class GlassSphere : public Sphere
 {
  public:
-  GlassSphere(vec3f center, float radius, float eta) : Sphere(center, radius)
+  GlassSphere(vec3f center,
+              float radius,
+              float eta,
+              vec3f color = {1.f, 1.f, 1.f})
+      : Sphere(center, radius)
   {
     OSPMaterial glassMaterial = ospNewMaterial2(renderer_type.c_str(), "Glass");
+    ospSet3f(glassMaterial, "attenuationColor", color.x, color.y, color.z);
     ospSetf(glassMaterial, "eta", eta);
     ospCommit(glassMaterial);
     ospSetMaterial(sphere, glassMaterial);
     ospRelease(glassMaterial);
     ospCommit(sphere);
   }
-  OSPMaterial glassMaterial;
 };
 
 class MetalSphere : public Sphere
 {
  public:
-  MetalSphere(vec3f center, float radius, vec3f color, float roughness)
+  MetalSphere(vec3f center, float radius, float roughness, vec3f color)
       : Sphere(center, radius)
   {
     OSPMaterial metalMaterial = ospNewMaterial2(renderer_type.c_str(), "Alloy");
@@ -98,7 +104,6 @@ class MetalSphere : public Sphere
     ospRelease(metalMaterial);
     ospCommit(sphere);
   }
-  OSPMaterial metalMaterial;
 };
 
 OSPModel createRandomScene()
@@ -110,53 +115,43 @@ OSPModel createRandomScene()
   std::random_device rd;
   std::mt19937 gen(rd());
 
-  std::uniform_real_distribution<float> chooseRnd(0.f, 1.f);
+  std::uniform_real_distribution<float> matRnd(0.f, 1.f);
   std::uniform_real_distribution<float> centerRnd(0.f, 0.9f);
-  std::uniform_real_distribution<float> diffuseRnd(0.f, 1.f);
-  std::uniform_real_distribution<float> metalRnd(0.5f, 1.f);
-  std::uniform_real_distribution<float> roughnessRnd(0.f, 1.f);
-
-  // Create a vector of handles to hold all geometries
-  std::vector<Sphere> spheres;
+  std::uniform_real_distribution<float> colorRnd(0.f, 1.f);
+  std::uniform_real_distribution<float> roughnessRnd(0.f, 0.9f);
 
   // All spheres have different materials, so must be created as separate
   // geometries
 
   // Create "ground" sphere
-  spheres.push_back(
-      DiffuseSphere(vec3f(0, -1000, 0), 1000, vec3f(0.5, 0.5, 0.5)));
+  ospAddGeometry(
+      scene, DiffuseSphere(vec3f(0, -1000, 0), 1000, vec3f(0.5, 0.5, 0.5)).g());
 
   // Create 3 static spheres
-  spheres.push_back(GlassSphere(vec3f(0, 1, 0), 1.0, 1.5));
-  spheres.push_back(DiffuseSphere(vec3f(-4, 1, 0), 1.0, vec3f(0.4, 0.2, 0.1)));
-  spheres.push_back(
-      MetalSphere(vec3f(4, 1, 0), 1.0, vec3f(0.7, 0.6, 0.5), 0.0));
+  ospAddGeometry(scene, GlassSphere(vec3f(0, 1, 0), 1.0, 1.5).g());
+  ospAddGeometry(scene,
+                 DiffuseSphere(vec3f(-4, 1, 0), 1.0, vec3f(0.4, 0.2, 0.1)).g());
+  ospAddGeometry(
+      scene, MetalSphere(vec3f(4, 1, 0), 1.0, 0.0, vec3f(0.7, 0.6, 0.5)).g());
 
   // Create all random spheres
   for (int a = -11; a < 11; a++) {
     for (int b = -11; b < 11; b++) {
       vec3f center(a + centerRnd(gen), 0.2, b + centerRnd(gen));
+      float type_mat(matRnd(gen));
+      vec3f color(colorRnd(gen), colorRnd(gen), colorRnd(gen));
 
       if (length(center - vec3f(4, 0.2, 0)) > 0.9) {
-        float choose_mat = chooseRnd(gen);
-        if (choose_mat < 0.8) {  // diffuse
-          vec3f color(diffuseRnd(gen), diffuseRnd(gen), diffuseRnd(gen));
-          spheres.push_back(DiffuseSphere(center, 0.2, color));
-        } else if (choose_mat < 0.95) {  // metal
-          vec3f color(metalRnd(gen), metalRnd(gen), metalRnd(gen));
-          spheres.push_back(MetalSphere(center, 0.2, color, roughnessRnd(gen)));
-
+        if (type_mat < 0.5) {  // diffuse
+          ospAddGeometry(scene, DiffuseSphere(center, 0.2, color).g());
+        } else if (type_mat < 0.75) {  // metal
+          ospAddGeometry(
+              scene, MetalSphere(center, 0.2, roughnessRnd(gen), color).g());
         } else {  // glass
-          spheres.push_back(GlassSphere(center, 0.2, 1.5));
+          ospAddGeometry(scene, GlassSphere(center, 0.2, 1.5, color).g());
         }
       }
     }
-  }
-
-  // Add all geometry to the scene
-  for (auto &s : spheres) {
-    ospAddGeometry(scene, s.geom());
-    ospRelease(s.geom());
   }
 
   return scene;
@@ -194,35 +189,37 @@ int main(int argc, const char **argv)
   // create OSPRay lights
   std::vector<OSPLight> lights;
 
-  // XXX: Fix the lighting
   auto ambientLight = ospNewLight3("ambient");
-  ospSet1f(ambientLight, "intensity", 1.0f);
+  ospSet1f(ambientLight, "intensity", 0.7f);
   ospSet3f(ambientLight, "color", 0.5, 0.7, 1.0);
   ospCommit(ambientLight);
   lights.push_back(ambientLight);
 
-#if 0
   auto directionalLight = ospNewLight3("distant");
-  ospSet1f(directionalLight, "intensity", 0.9f);
-  ospSet3f(directionalLight, "color", 1.f, 1.f, 1.f);
-  ospSet3f(directionalLight, "direction", 0.f, -1.f, 0.f);
+  ospSet1f(directionalLight, "intensity", 1.0f);
+  ospSet3f(directionalLight, "color", 1.f, 0.72f, 0.075f);
+  ospSet3f(directionalLight, "direction", 0.f, -1.f, 0.5f);
   ospCommit(directionalLight);
   lights.push_back(directionalLight);
-#endif
 
   auto lightsData = ospNewData(lights.size(), OSP_OBJECT, lights.data());
+
+  for (auto &l : lights)
+    ospRelease(l);
   lights.clear();
+
   ospSetData(renderer, "lights", lightsData);
   ospRelease(lightsData);
 
   ospCommit(renderer);
 
   // XXX: Add default camera parameters
+  // XXX: Add depth of field, focus length and aperture
   // create a GLFW OSPRay window: this object will create and manage the OSPRay
   // frame buffer and camera directly
   auto glfwOSPRayWindow =
       std::unique_ptr<GLFWOSPRayWindow>(new GLFWOSPRayWindow(
-          vec2i{1024, 768}, box3f(vec3f(-12.f), vec3f(15.f)), scene, renderer));
+          vec2i{1024, 768}, box3f(vec3f(-12.f), vec3f(12.f)), scene, renderer));
 
   glfwOSPRayWindow->registerImGuiCallback([=]() {
     static int spp = 1;
