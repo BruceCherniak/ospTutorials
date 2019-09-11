@@ -88,5 +88,5 @@ target_link_libraries(ospTutorialUnstructuredVolume PRIVATE tutorial_common)
 add_executable(ospTutorialQuadMesh ospTutorialQuadMesh.cpp)
 target_link_libraries(ospTutorialQuadMesh PRIVATE tutorial_common)
 
-add_executable(ospTutorialAfternoon ospTutorialAfternoon.cpp)
-target_link_libraries(ospTutorialAfternoon PRIVATE tutorial_common)
+add_executable(ospInAnAfternoon ospInAnAfternoon.cpp)
+target_link_libraries(ospInAnAfternoon PRIVATE tutorial_common)

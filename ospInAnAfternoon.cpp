@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-// OSPRay in an Afternoon
+// OSPRay in an Afternoon (version for OSPRay v1.8.5)
 // Inspired by Pete Shirley's excellent Ray Tracing in One Weekend
 
 #include <iterator>
@@ -26,32 +26,28 @@
 
 using namespace ospcommon;
 
-std::string renderer_type = "pathtracer";
+static std::string renderer_type = "pathtracer";
 
 class Sphere
 {
  public:
   Sphere(vec3f center, float radius)
   {
-    sphere       = ospNewGeometry("spheres");
-    OSPData data = ospNewData(1, OSP_FLOAT4, &center);
-    ospCommit(data);
-    ospSetData(sphere, "spheres", data);
+    sphereGeometry = ospNewGeometry("spheres");
+    OSPData data   = ospNewData(1, OSP_FLOAT4, &center);
+    ospSetData(sphereGeometry, "spheres", data);
     ospRelease(data);
-    ospSet1i(sphere, "bytes_per_sphere", sizeof(vec3f));
-    ospSet1f(sphere, "radius", radius);
-    ospCommit(sphere);
-  }
-  ~Sphere()
-  {
-    ospRelease(sphere);
-  }
-  OSPGeometry g()
-  {
-    return sphere;
+    ospSet1i(sphereGeometry, "bytes_per_sphere", sizeof(vec3f));
+    ospSet1f(sphereGeometry, "radius", radius);
+    ospCommit(sphereGeometry);
   }
 
-  OSPGeometry sphere;
+  OSPGeometry g()
+  {
+    return sphereGeometry;
+  }
+
+  OSPGeometry sphereGeometry;
 };
 
 class DiffuseSphere : public Sphere
@@ -65,9 +61,9 @@ class DiffuseSphere : public Sphere
     ospSet3f(diffuseMaterial, "Kd", color.x, color.y, color.z);
     ospSetf(diffuseMaterial, "Ns", 1.f);
     ospCommit(diffuseMaterial);
-    ospSetMaterial(sphere, diffuseMaterial);
+    ospSetMaterial(sphereGeometry, diffuseMaterial);
     ospRelease(diffuseMaterial);
-    ospCommit(sphere);
+    ospCommit(sphereGeometry);
   }
 };
 
@@ -84,9 +80,9 @@ class GlassSphere : public Sphere
     ospSet3f(glassMaterial, "attenuationColor", color.x, color.y, color.z);
     ospSetf(glassMaterial, "eta", eta);
     ospCommit(glassMaterial);
-    ospSetMaterial(sphere, glassMaterial);
+    ospSetMaterial(sphereGeometry, glassMaterial);
     ospRelease(glassMaterial);
-    ospCommit(sphere);
+    ospCommit(sphereGeometry);
   }
 };
 
@@ -100,9 +96,9 @@ class MetalSphere : public Sphere
     ospSet3f(metalMaterial, "color", color.x, color.y, color.z);
     ospSetf(metalMaterial, "roughness", roughness);
     ospCommit(metalMaterial);
-    ospSetMaterial(sphere, metalMaterial);
+    ospSetMaterial(sphereGeometry, metalMaterial);
     ospRelease(metalMaterial);
-    ospCommit(sphere);
+    ospCommit(sphereGeometry);
   }
 };
 
@@ -123,16 +119,18 @@ OSPModel createRandomScene()
   // All spheres have different materials, so must be created as separate
   // geometries
 
+  std::vector<OSPGeometry> spheres;
+
   // Create "ground" sphere
-  ospAddGeometry(
-      scene, DiffuseSphere(vec3f(0, -1000, 0), 1000, vec3f(0.5, 0.5, 0.5)).g());
+  spheres.push_back(
+      DiffuseSphere(vec3f(0, -1000, 0), 1000, vec3f(0.5, 0.5, 0.5)).g());
 
   // Create 3 static spheres
-  ospAddGeometry(scene, GlassSphere(vec3f(0, 1, 0), 1.0, 1.5).g());
-  ospAddGeometry(scene,
-                 DiffuseSphere(vec3f(-4, 1, 0), 1.0, vec3f(0.4, 0.2, 0.1)).g());
-  ospAddGeometry(
-      scene, MetalSphere(vec3f(4, 1, 0), 1.0, 0.0, vec3f(0.7, 0.6, 0.5)).g());
+  spheres.push_back(GlassSphere(vec3f(0, 1, 0), 1.0, 1.5).g());
+  spheres.push_back(
+      DiffuseSphere(vec3f(-4, 1, 0), 1.0, vec3f(0.4, 0.2, 0.1)).g());
+  spheres.push_back(
+      MetalSphere(vec3f(4, 1, 0), 1.0, 0.0, vec3f(0.7, 0.6, 0.5)).g());
 
   // Create all random spheres
   for (int a = -11; a < 11; a++) {
@@ -143,15 +141,21 @@ OSPModel createRandomScene()
 
       if (length(center - vec3f(4, 0.2, 0)) > 0.9) {
         if (type_mat < 0.5) {  // diffuse
-          ospAddGeometry(scene, DiffuseSphere(center, 0.2, color).g());
+          spheres.push_back(DiffuseSphere(center, 0.2, color).g());
         } else if (type_mat < 0.75) {  // metal
-          ospAddGeometry(
-              scene, MetalSphere(center, 0.2, roughnessRnd(gen), color).g());
+          spheres.push_back(
+              MetalSphere(center, 0.2, roughnessRnd(gen), color).g());
         } else {  // glass
-          ospAddGeometry(scene, GlassSphere(center, 0.2, 1.5, color).g());
+          spheres.push_back(GlassSphere(center, 0.2, 1.5, color).g());
         }
       }
     }
+  }
+
+    // Add geometries to scene model, then free geometry
+  for (auto &s : spheres) {
+    ospAddGeometry(scene, s);
+    ospRelease(s);
   }
 
   return scene;
